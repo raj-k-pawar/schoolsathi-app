@@ -26,13 +26,15 @@ workflows:
       # groups:
       #   - appetize
     scripts:
+      - name: Remove files made on another computer
+        script: |
+          # These hold paths of the computer they were made on (e.g. /home/asus/...). Flutter recreates them here.
+          rm -rf ios/Flutter/Generated.xcconfig ios/Flutter/flutter_export_environment.sh ios/Flutter/ephemeral \
+                 ios/Pods ios/Podfile.lock ios/.symlinks android/local.properties .dart_tool build
       - name: Get packages
         script: flutter pub get
-      - name: Install CocoaPods
-        script: |
-          cd ios
-          pod install --repo-update
       - name: Build for the iOS simulator
+        # Also installs the CocoaPods (Firebase, scanner ...) with the correct paths for this Mac.
         script: flutter build ios --simulator --debug --dart-define=API_URL=$API_URL
       - name: Zip the app for Appetize
         script: |
