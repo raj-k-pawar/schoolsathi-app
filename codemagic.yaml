@@ -1,0 +1,55 @@
+# Codemagic builds of the SchoolSathi app (codemagic.io).
+#
+# ios-simulator-appetize: an iPhone SIMULATOR build to try the app in the browser on appetize.io.
+#   - No Apple Developer account and no signing needed.
+#   - Result: "schoolsathi-ios-simulator.zip" under Artifacts -> upload it at https://appetize.io/upload
+#     (choose platform iOS), or let the last step upload it (see APPETIZE_API_TOKEN below).
+#   - Camera, push notifications and real GPS do not work in a simulator; everything else does.
+#
+# Later, for real iPhones (TestFlight), a signed workflow is added once the Apple Developer account exists.
+
+workflows:
+  ios-simulator-appetize:
+    name: iOS simulator build for Appetize
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    environment:
+      flutter: 3.47.7
+      xcode: latest
+      cocoapods: default
+      vars:
+        # The server the app talks to. It must run the latest SchoolSathi backend.
+        API_URL: https://schoolsathi.nextlogic.in
+      # Optional automatic upload to Appetize: in Codemagic > this app > Environment variables, create a group
+      # named "appetize" with APPETIZE_API_TOKEN (from appetize.io > Account > API token) and, after the first
+      # upload, APPETIZE_APP_KEY (so later builds update the same Appetize link). Then remove the "#" below.
+      # groups:
+      #   - appetize
+    scripts:
+      - name: Get packages
+        script: flutter pub get
+      - name: Install CocoaPods
+        script: |
+          cd ios
+          pod install --repo-update
+      - name: Build for the iOS simulator
+        script: flutter build ios --simulator --debug --dart-define=API_URL=$API_URL
+      - name: Zip the app for Appetize
+        script: |
+          cd build/ios/iphonesimulator
+          zip -qr "$CM_BUILD_DIR/schoolsathi-ios-simulator.zip" Runner.app
+          ls -lh "$CM_BUILD_DIR/schoolsathi-ios-simulator.zip"
+      - name: Upload to Appetize (only when APPETIZE_API_TOKEN is set)
+        script: |
+          if [ -z "$APPETIZE_API_TOKEN" ]; then
+            echo "No APPETIZE_API_TOKEN set: download schoolsathi-ios-simulator.zip from Artifacts and upload it at https://appetize.io/upload"
+            exit 0
+          fi
+          URL="https://api.appetize.io/v1/apps"
+          if [ -n "$APPETIZE_APP_KEY" ]; then URL="$URL/$APPETIZE_APP_KEY"; fi
+          curl --fail -sS -X POST "$URL" -H "X-API-KEY: $APPETIZE_API_TOKEN" \
+            -F "file=@$CM_BUILD_DIR/schoolsathi-ios-simulator.zip" -F "platform=ios" | tee appetize.json
+          echo
+          echo "Open the app at: https://appetize.io/app/$(python3 -c 'import json;print(json.load(open("appetize.json"))["publicKey"])')"
+    artifacts:
+      - schoolsathi-ios-simulator.zip
